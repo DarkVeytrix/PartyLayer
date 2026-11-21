@@ -6,8 +6,10 @@
  * cap; (c) restore → silent probe + party-match (+ expiry/mismatch → null);
  * (d) ledgerApi → standard call + 'ledgerApi' cap; (e) metadata populated when the
  * provider returns it, minimal when not; (f) mapError translates a configured
- * error, falls through otherwise. The optional methods are instance-assigned only
- * when configured, so feature-detection (`'x' in adapter`) stays honest.
+ * error, falls through otherwise; (g) signMessage:false → the capability is omitted
+ * and the method is absent (default true keeps the baseline). The optional methods
+ * are instance-assigned only when configured, so feature-detection (`'x' in adapter`)
+ * stays honest.
  */
 import { describe, it, expect, vi } from 'vitest';
 import { toPartyId, toWalletId, type CIP0103Provider } from '@partylayer/core';
@@ -67,6 +69,14 @@ function make(config?: AnnounceAdapterConfig, handlers?: Handlers) {
 }
 
 describe('GenericAnnounceAdapter — opt-in config', () => {
+  it.each([false, { isConnected: false }])('rejects a negative handshake before reading a cached primary account: %j', async connect => {
+    const { adapter } = make(undefined, { connect });
+    await expect(adapter.connect(ctx)).rejects.toThrow(/did not establish a connection/);
+  });
+  it('rejects an empty primary party instead of reporting a connected session', async () => {
+    const { adapter } = make(undefined, { getPrimaryAccount: { ...ACCOUNT, partyId: '' } });
+    await expect(adapter.connect(ctx)).rejects.toThrow(/primary party/);
+  });
   it('(a) NO config → byte-identical baseline (3 caps, minimal session, no optional methods)', async () => {
     const { adapter } = make();
     expect(adapter.getCapabilities()).toEqual(['connect', 'signMessage', 'submitTransaction']);
@@ -114,6 +124,14 @@ describe('GenericAnnounceAdapter — opt-in config', () => {
     expect(adapter.getCapabilities()).toContain('ledgerApi');
     const r = await adapter.ledgerApi!(ctx, session, { requestMethod: 'GET', resource: '/v2/state' });
     expect(r).toEqual({ response: '{"ok":true}' });
+  });
+
+  it('does not revive the same party on a different live network', async () => {
+    const { adapter } = make({ restore: true }, {
+      status: { connection: { isConnected: true }, network: { networkId: 'canton:da-mainnet' } },
+      getPrimaryAccount: { ...ACCOUNT, networkId: 'canton:da-mainnet' },
+    });
+    expect(await adapter.restore!(ctx, { partyId: ACCOUNT.partyId, network: 'devnet' } as never)).toBeNull();
   });
 
   it('(e) metadata: populated when configured + provider returns it; minimal otherwise', async () => {
@@ -211,5 +229,24 @@ describe('GenericAnnounceAdapter — opt-in config', () => {
 
     const other = make({ mapError }, { connect: { __throw: new Error('different') } }).adapter;
     await expect(other.connect(ctx)).rejects.toThrow('different'); // fell through, original preserved
+  });
+
+  it('(g) signMessage:false → capability omitted and the method absent (honest, not permissive)', () => {
+    const { adapter } = make({ signMessage: false });
+    expect(adapter.getCapabilities()).not.toContain('signMessage');
+    expect(adapter.getCapabilities()).toEqual(['connect', 'submitTransaction']);
+    expect(adapter.signMessage).toBeUndefined();
+  });
+
+  it('(g) default (no signMessage flag) → capability and method present (baseline unchanged)', () => {
+    const { adapter } = make();
+    expect(adapter.getCapabilities()).toContain('signMessage');
+    expect(typeof adapter.signMessage).toBe('function');
+  });
+
+  it('(g) signMessage:true → explicit true keeps the capability and method', () => {
+    const { adapter } = make({ signMessage: true });
+    expect(adapter.getCapabilities()).toContain('signMessage');
+    expect(typeof adapter.signMessage).toBe('function');
   });
 });

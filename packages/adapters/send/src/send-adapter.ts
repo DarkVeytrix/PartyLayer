@@ -103,11 +103,16 @@ export class SendAdapter implements WalletAdapter {
 
   async detectInstalled(): Promise<AdapterDetectResult> {
     if (typeof window === 'undefined') {
-      return { installed: false, reason: 'Browser environment required' };
+      return {
+        installed: false,
+        availability: { kind: 'unknown', reason: 'No browser environment' },
+        reason: 'Browser environment required',
+      };
     }
     if (!this.provider.isPotentiallyAvailable()) {
       return {
         installed: false,
+        availability: { kind: 'not-installed', install: SEND_INSTALL_URL },
         reason: `Send Canton Wallet not detected. Visit ${SEND_INSTALL_URL} for installation instructions`,
       };
     }
@@ -115,10 +120,15 @@ export class SendAdapter implements WalletAdapter {
     // of who owns the shared window.canton slot (e.g. Console).
     const installed = await this.provider.isInstalled();
     if (installed) {
-      return { installed: true, reason: 'Send Canton Wallet detected' };
+      return {
+        installed: true,
+        availability: { kind: 'installed' },
+        reason: 'Send Canton Wallet detected',
+      };
     }
     return {
       installed: false,
+      availability: { kind: 'not-installed', install: SEND_INSTALL_URL },
       reason: `Send Canton Wallet did not announce (canton:announceProvider). Visit ${SEND_INSTALL_URL} for installation instructions`,
     };
   }
@@ -310,6 +320,8 @@ export class SendAdapter implements WalletAdapter {
         submittedAt: Date.now(),
         commandId: tx.commandId,
         updateId: tx.payload.updateId,
+        ...(typeof tx.payload.completionOffset === 'number' && Number.isSafeInteger(tx.payload.completionOffset) && tx.payload.completionOffset >= 0
+          ? { completionOffset: tx.payload.completionOffset } : {}),
       };
     } catch (err) {
       const baseHint = templateIdHint(payload);

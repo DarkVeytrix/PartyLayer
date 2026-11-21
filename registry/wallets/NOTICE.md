@@ -14,9 +14,12 @@ obtain your own permission from each mark's owner before redistributing these fi
 |---|---|
 | bron.png | Bron |
 | cantor8.png | Cantor8 |
+| cauri.svg | Cauri Wallet |
 | console.png | Console Wallet |
 | loop.svg | 5N Loop |
 | nightly.png | Nightly |
+| oneswap.svg | OneSwap V2 Wallet. Used with the vendor's permission. |
 | send-logo.jpg | Send |
+| vala-logo.png | Vala Wallet |
 | walletconnect.svg | WalletConnect |
 | walley-logo.png | Walley |

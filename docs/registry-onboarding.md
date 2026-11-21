@@ -4,7 +4,7 @@
 
 ## Overview
 
-The PartyLayer wallet registry is a signed, versioned JSON file that lists available wallets. Wallets start in the `beta` channel and are promoted to `stable` after validation. Each wallet is one entry in the `wallets` array of `registry/v1/<channel>/registry.json`, and every entry must match the `RegistryWalletEntry` schema in `packages/registry-client/src/schema.ts` (also enforced by `tooling/registry-schema/registry.schema.json`).
+The PartyLayer wallet registry is a versioned JSON file that lists available wallets. It is schema-validated on every build and published in public; it is not signed today (see `SIGNING.md`). Wallets start in the `beta` channel and are promoted to `stable` after validation. Each wallet is one entry in the `wallets` array of `registry/v1/<channel>/registry.json`, and every entry must match the `RegistryWalletEntry` schema in `packages/registry-client/src/schema.ts` (also enforced by `tooling/registry-schema/registry.schema.json`).
 
 ## Registry Entry Schema
 
@@ -19,6 +19,8 @@ The PartyLayer wallet registry is a signed, versioned JSON file that lists avail
 | `adapter.type` | `string` | Adapter package name, or a logical type for announce/discovery wallets |
 
 The `capabilities` object requires these booleans: `signMessage`, `signTransaction`, `submitTransaction`, `transactionStatus`, `switchNetwork`, `multiParty`. Optional booleans: `mobileConnect`, `remoteSigner`, and `events` (set `events: true` for wallets that emit CIP-0103 provider events).
+
+Set `signMessage: false` if your wallet cannot sign an arbitrary message, for example a custodial wallet that answers `signMessage` with the CIP-0103 unsupported code. On the announce path this is authoritative: the reported capability set then omits `signMessage`, so a dApp does not offer a sign action that would fail. Declaring it true when the wallet cannot sign is the setting to avoid.
 
 ### Optional fields
 
@@ -243,7 +245,7 @@ If a bad registry is published:
 ## Security Considerations
 
 - **Origin Allowlist**: use for production wallets to restrict access.
-- **Signature Verification**: always verify registry signatures.
+- **Signature Verification**: not available today. Signing is implemented in the client but no signature is published, so verification only runs if you supply `registryPublicKeys` and a signature yourself. See `SIGNING.md`.
 - **Sequence Numbers**: never decrease the sequence (prevents downgrade attacks).
 
 ## Support

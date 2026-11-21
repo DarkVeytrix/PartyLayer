@@ -38,10 +38,6 @@ import {
   type SignedMessage,
   type WalletAdapter,
 } from '@partylayer/core';
-import { getBuiltinAdapters, type OfficialProviderAdapter, type OfficialAdapterFactory } from '@partylayer/sdk';
-import { WalleyAdapter } from '@k2flabs/walley-dapp-sdk';
-import { buildWalletConnectAdapter } from './walletconnect-demo';
-import { sortByCanonicalOrder } from './wallet-order';
 
 const WALLET_ID = 'canton-demo';
 const WALLET_NAME = 'Canton Demo Wallet';
@@ -193,30 +189,7 @@ export class CantonDemoWalletAdapter implements WalletAdapter {
   }
 }
 
-/**
- * Demo's canonical adapter list. Equal to `getBuiltinAdapters()` in
- * production; in dev / Playwright it also registers the
- * CantonDemoWalletAdapter so the fixture-backed test wallet surfaces
- * in the picker.
- */
-export function buildDemoAdapters(): (WalletAdapter | OfficialProviderAdapter | OfficialAdapterFactory)[] {
-  // Opt-in WalletConnect (live mobile-wallet scan). Registering it surfaces
-  // "WalletConnect" in the picker; its dapp-sdk barrel only loads at connect.
-  const adapters: (WalletAdapter | OfficialProviderAdapter | OfficialAdapterFactory)[] = [
-    ...getBuiltinAdapters(),
-    buildWalletConnectAdapter(),
-    // Walley — popup/remote wallet. FACTORY form: the SDK resolves the host from
-    // the registry entry's adapter.networkHosts for the active network (no
-    // hardcoded URL) and constructs the official adapter with it. No
-    // @partylayer/adapter-walley package. Validated against real dev.walley.cc
-    // by the walley E2E (devnet host resolved from the registry entry).
-    { providerId: 'walley', create: (host: string) => new WalleyAdapter({ host }) },
-  ];
-  if (process.env.NODE_ENV !== 'production') {
-    adapters.push(new CantonDemoWalletAdapter());
-  }
-  // Canonical order shared across every demo-rendered wallet list.
-  return sortByCanonicalOrder(adapters, (a) =>
-    String((a as { walletId?: unknown }).walletId ?? (a as OfficialProviderAdapter).providerId),
-  );
+/** Only the local fixture extends the same public default catalog used by consumers. */
+export function buildDemoAdapters(): WalletAdapter[] {
+  return process.env.NODE_ENV !== 'production' ? [new CantonDemoWalletAdapter()] : [];
 }

@@ -1,5 +1,53 @@
 # @partylayer/studio
 
+## 0.0.10
+
+### Patch Changes
+
+- Updated dependencies [6163ee3]
+- Updated dependencies [645285d]
+  - @partylayer/sdk@0.22.0
+  - @partylayer/react@3.4.0
+  - @partylayer/provider@0.6.2
+  - @partylayer/session@1.1.11
+
+## 0.0.9
+
+### Patch Changes
+
+- Updated dependencies [64ac2e1]
+- Updated dependencies [64ac2e1]
+  - @partylayer/sdk@0.21.0
+  - @partylayer/react@3.2.0
+
+## 0.0.8
+
+### Patch Changes
+
+- Updated dependencies [2e07185]
+- Updated dependencies
+- Updated dependencies [0ebd598]
+- Updated dependencies [8cb0f09]
+- Updated dependencies [2e07185]
+- Updated dependencies [86f1a7d]
+  - @partylayer/sdk@0.20.0
+  - @partylayer/react@3.1.0
+  - @partylayer/provider@0.6.1
+  - @partylayer/session@1.1.9
+
+## 0.0.7
+
+### Patch Changes
+
+- Updated dependencies [9e8ca31]
+- Updated dependencies [18e7e42]
+- Updated dependencies [2eee6b1]
+- Updated dependencies [fbda51f]
+  - @partylayer/sdk@0.19.0
+  - @partylayer/provider@0.6.0
+  - @partylayer/react@3.0.0
+  - @partylayer/session@1.1.8
+
 ## 0.0.6
 
 ### Patch Changes

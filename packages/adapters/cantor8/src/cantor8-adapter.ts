@@ -41,7 +41,6 @@ import type {
 import {
   toWalletId,
   toPartyId,
-  toTransactionHash,
   CapabilityNotSupportedError,
   mapUnknownErrorToPartyLayerError,
   type CapabilityKey,
@@ -154,7 +153,11 @@ export class Cantor8Adapter implements WalletAdapter {
    */
   async detectInstalled(): Promise<AdapterDetectResult> {
     if (typeof window === 'undefined') {
-      return { installed: false, reason: 'Browser environment required' };
+      return {
+        installed: false,
+        availability: { kind: 'unknown', reason: 'No browser environment' },
+        reason: 'Browser environment required',
+      };
     }
     // Warm the SDK module (see the warming note above). A load failure is not
     // fatal to availability; it surfaces at connect() where the real work happens.
@@ -163,7 +166,14 @@ export class Cantor8Adapter implements WalletAdapter {
     } catch {
       /* ignore; connect() surfaces a genuine SDK load failure */
     }
-    return { installed: true };
+    // Cantor8 is a HOSTED web wallet, not an extension: connecting opens a tab
+    // on cantor8.tech. Answering `installed: true` put a ready-looking tile in
+    // the picker for software that was never on the machine.
+    return {
+      installed: false,
+      availability: { kind: 'no-local-install' },
+      reason: 'Opens cantor8.tech in a new tab — nothing is installed locally',
+    };
   }
 
   async connect(
@@ -270,10 +280,9 @@ export class Cantor8Adapter implements WalletAdapter {
         commandsJson: input.commandsJson,
         disclosedContracts: input.disclosedContracts ?? '',
       });
-      // signAndExecute returns no id; key the receipt on the caller's commandId.
+      // signAndExecute returns no ledger id; retain commandId only for correlation.
       // The confirmed ledger txId + status arrive via the txChanged event.
       return {
-        transactionHash: toTransactionHash(input.commandId),
         submittedAt: Date.now(),
         commandId: input.commandId,
       };

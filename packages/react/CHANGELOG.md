@@ -1,5 +1,299 @@
 # @partylayer/react
 
+## 3.4.0
+
+### Minor Changes
+
+- 645285d: Add the optional `/operations` entry point to the existing React package: review
+  transfer intent before one wallet submission, accept/reject/withdraw pending
+  instructions, and distinguish ledger inclusion from correlated business outcome.
+  Keep unknown outcomes explicit, never automatically retry writes, invalidate stale
+  session/configuration reviews and support all fourteen UI languages. Public
+  reviews expose immutable input and expiry rather than internal prepared commands.
+
+  Add explicit, separately typed HoldingV2 queries and exact account-separated
+  balances alongside unchanged V1 return types. Preserve the current Connect Wallet
+  design and keep optional operation code outside its initial import surface.
+
+  Default to the first supported browser language after hydration, with an English
+  fallback and explicit application/user choices taking priority. Expose
+  `usePartyLayerLocale` for controlled language pickers. Refine operation cards,
+  review controls and account balances with responsive layouts tested against long
+  identifiers, exact large amounts, RTL and narrow or zoomed viewports.
+
+### Patch Changes
+
+- Updated dependencies [6163ee3]
+  - @partylayer/core@0.16.0
+  - @partylayer/sdk@0.22.0
+  - @partylayer/registry-client@0.7.2
+  - @partylayer/session@1.1.11
+
+## 3.3.0
+
+### Minor Changes
+
+- Add twelve on-demand wallet UI catalogs, automatic Arabic RTL and a controlled, searchable LanguageSelector with native language names and keyboard/focus handling. Preserve English/Turkish rendering, wallet sessions, theme support and deterministic hydration.
+
+## 3.2.0
+
+### Minor Changes
+
+- 64ac2e1: Add authorized, identity-scoped CIP-0103 JSON Ledger API holdings reads and independent update/command correlation. Add the ready React holdings hook and an opt-in pending transaction journal that restores unknown outcomes without replaying writes. Preserve existing hooks and default memory-only behavior; expose optional registry trust roots through PartyLayerKit.
+
+### Patch Changes
+
+- Render wallet QR SVGs as inert images, validate Console deep links and WalletConnect pairing URIs, and keep decimal normalization linear for long fractions.
+
+- Updated dependencies [64ac2e1]
+- Updated dependencies [64ac2e1]
+- Updated dependencies [64ac2e1]
+  - @partylayer/sdk@0.21.0
+  - @partylayer/registry-client@0.7.1
+
+## 3.1.2
+
+### Patch Changes
+
+- Route React's base and Query disconnect hooks through the shared session store so explicit logout cancels reconnect and participates in opt-in tab synchronization. Receiving tabs also disconnect their provider owner once without rebroadcasting, keeping SDK and reactive account UI consistent. Preserve async hook errors and direct-client fallback. Add real-browser restore, cross-tab logout and revoked-wallet cache checks to PR validation.
+- Updated dependencies
+  - @partylayer/session@1.1.10
+
+## 3.1.1
+
+### Patch Changes
+
+- ea0de53: Describe Canton Network wallet integration, CIP-0103 support and framework-specific entry points in npm metadata. Link packages to the relevant setup guides and improve discovery with relevant keywords. Runtime APIs and wallet capability contracts are unchanged.
+- Updated dependencies [ea0de53]
+  - @partylayer/sdk@0.20.1
+
+## 3.1.0
+
+- Align README and website onboarding around one installation, included wallet runtimes,
+  explicit network/configuration prerequisites and the default branded connection UI.
+
+- Announce an empty wallet search through a persistent polite status region,
+  retaining focus in the search field and preserving translated messages.
+
+- Keep attribution text at its readable theme contrast and hide decorative picker
+  icons from assistive technology to avoid repeating wallet names. Add automated
+  axe acceptance for light/dark, search/help, mobile Turkish RTL and account UI.
+
+- Improve built-in theme text/status contrast, accent foreground and hover contrast,
+  native/beta labels and search placeholder/focus visibility. Guard normal text
+  pairs at 4.5:1 across built-in families and presets; custom overrides still need review.
+
+- Keep the shared session store as an in-memory live provider projection by
+  default. Defer external subscriptions until committed effects, preserve them
+  across StrictMode replay and reject late initial snapshots after a new connection.
+
+- Preserve the live client during React StrictMode effect replay while still disposing
+  replaced/unmounted clients. This keeps asynchronously loaded wallets available in development.
+
+- Add wallet dialog focus containment/restore and account menu keyboard navigation,
+  accessible avatar-only account names, and form-safe buttons. Keep vendor approval
+  surfaces independent. Cover the behavior with unit and real Chromium keyboard tests.
+
+### Minor Changes
+
+- Add authorized account-panel holdings and `TokenBalances`, plus exact-decimal
+  summaries grouped by issuer/admin and instrument id. Keep reported locks separate,
+  reject duplicate/invalid holding data and hide mismatched party/network data.
+  Update the wallet-balance example and docs to the current read-only snapshot
+  contract and public default button; remove floating-point token sums.
+
+- Add `useTransactionFlow` with explicit approval, submission, ledger-confirmed,
+  rejected, failed and unknown states; separate read-only reconciliation from the
+  single wallet write. Add scoped in-memory recent activity to the default account
+  panel and `useRecentTransactions`/`RecentTransactions` for custom views. Show
+  actual network and wallet-side recovery guidance for unsupported changes.
+
+- Disable automatic retries for all ledger-write mutation hooks, including global
+  QueryClient or explicit mutation retry options. A lost response after ledger
+  acceptance must be reconciled rather than submitting a second time. Existing
+  read-query retry behavior remains configurable.
+
+- Add optional application-backend authentication to PartyLayerKit and ConnectButton,
+  with explicit sign-in/sign-out, restored backend session checks, and invalidation
+  on observed wallet/party/network changes. Reject stale approvals and revoke late
+  verification after disconnect/unmount. Pair with the core single-use challenge
+  helpers and an application-owned signature/key-authorization verifier.
+  Prepare validated challenges before explicit clicks, expose `canSignIn`, and
+  invoke the wallet before any HTTP await so hosted-wallet popups retain browser
+  user activation. Retry failed/expired preparations without automatic signing.
+
+- Add English/Turkish connection and operation UI, a `locale`/`direction` setting
+  on `PartyLayerKit`, and `PartyLayerLocaleProvider` for advanced compositions.
+  Locale changes preserve the client and wallet session, use deterministic SSR
+  fallback, and translate accessible labels. Use logical layout properties for RTL;
+  application content and vendor approval screens retain their own language settings.
+
+- Include the reviewed, pinned Walley, Cauri, OneSwap and Vala official SDKs in the existing SDK with lazy loading through the generic CIP-0103 bridge. React and generated projects use the same default catalog without wallet-specific imports or installation. WalletConnect and Bron use shared application configuration; custom adapters can replace or extend defaults.
+
+  Filter wallets by the configured network and channel, align discovery capabilities with implemented methods, warm popup connections before returning the picker list, and validate restored official providers instead of reviving expired sessions. Vala remains Devnet beta.
+
+- 0ebd598: Stop reporting wallets as installed when nothing was installed.
+
+  `detectInstalled()` could only answer yes or no, and eight of twelve adapters had
+  no honest way to answer it — a QR wallet, a hosted popup, a relay and an OAuth
+  service have no local artefact to probe. They answered `true`, meaning
+  "reachable", and the picker read it as "installed". Cantor8 is not an extension
+  at all: its tile said installed, and clicking it opened a tab.
+
+  `AdapterDetectResult` gains `availability`, which says what presence actually is:
+  `installed`, `not-installed` (probed and absent, with an install URL),
+  `no-local-install` (QR / popup / relay — nothing to probe), or `unknown` (the
+  probe failed or timed out, which is not proof of absence). `installed` is
+  deprecated in its JSDoc, still populated, and exactly
+  `availability.kind === 'installed'`, so no consumer breaks.
+
+  **The false `true` was load-bearing.** `installGuard` read `installed` and threw
+  `WalletNotInstalledError` on false — so returning the truth would have blocked
+  connect for every wallet that has nothing to install. Making the adapters honest
+  broke connect for all of them until the guard was changed to ask its real
+  question: not "is it installed" but "do we already know this cannot work", which
+  only `not-installed` answers yes to. That coupling is why this is one contract
+  change rather than eight independent bug fixes.
+
+  Vendor `detect()` is no longer called for `discovery-adapter` wallets. All three
+  implementations are constants (`walley`: `window.open` exists; `cauri`:
+  `Promise.resolve(true)`; `oneswap`: `typeof window !== 'undefined'`), so awaiting
+  them bought no information while adding an async hop to the picker's render path
+  and a dependency on three third parties answering honestly. A `discovery-adapter`
+  transport IS the answer; the rule is applied in exactly one place.
+
+  The picker's subtitles for the two wallets measured causing real harm now say
+  what a click will do: "Scan to connect — nothing to install" and "Opens in a
+  popup — nothing to install".
+
+  `docs/adapters.md` records which adapters probe what, and one mismatch still
+  outstanding: Cantor8 classifies as `scan` but opens a tab, a registry-data fix
+  queued with the D5/D6 registry work.
+
+### Patch Changes
+
+- 2e07185: Give the registry a field for how a wallet connects, and four capabilities it could not express.
+
+  One overloaded signal was answering three independent questions: how a wallet is
+  DISCOVERED, how its SDK is LOADED, and how it CONNECTS. `installation.scriptTag`
+  says how the SDK is loaded, and it was read as "scan" — which is right for Loop
+  and wrong for Cantor8, script-loaded but opening a popup.
+
+  `connect: ('injected' | 'popup' | 'relay')[]` is now its own field. The shapes
+  came from surveying all ten wallets rather than from the one that prompted it,
+  and that ordering paid: Loop and WalletConnect are BOTH `relay` — a QR scanned by
+  a phone app and a mobile pairing — so a popup-versus-scan flag would have been
+  wrong for two wallets on day one. Their shared subtitle reads "Connect from
+  another device", because the axis is where the connection happens, not what the
+  UI looks like.
+
+  ORDER IS PREFERENCE ORDER, and it has a reader: `connect[0]` is what the picker
+  tries first, and `preferInstalled: false` — the modal's "Try mobile" affordance —
+  advances to the next entry. Console is `['injected', 'relay']`. That preference
+  already exists; it is hardcoded in Console's adapter today, and this is where it
+  belongs instead.
+
+  `transfer`, `ledgerApi`, `popup` and `restore` are now expressible.
+  `walletInfo.capabilities` could never contain them, so
+  `listWallets({ requiredCapabilities: ['transfer'] })` matched zero wallets while
+  every adapter implemented `requestTransfer` — two capability gates reading
+  contradictory sources.
+
+  Also fixed: `installHints.deepLinkScheme` was populated from
+  `installation.scriptTag`, putting an npm package name in a field meaning
+  `loop://`, while `installation.deeplink` was never mapped at all. Both halves
+  corrected. Nothing read the field, so it was inert — wrong value, right value
+  dropped, and it would have shipped broken the day something read it.
+
+  No registry entries change here. The data follows once this is published, so no
+  client sees entries declaring a schema it does not understand.
+
+- Updated dependencies [817d357]
+- Updated dependencies [2e07185]
+- Updated dependencies
+- Updated dependencies [882752f]
+- Updated dependencies [0ebd598]
+- Updated dependencies [8cb0f09]
+- Updated dependencies [2e07185]
+- Updated dependencies [8e08da9]
+- Updated dependencies [86f1a7d]
+  - @partylayer/core@0.15.0
+  - @partylayer/registry-client@0.7.0
+  - @partylayer/sdk@0.20.0
+  - @partylayer/session@1.1.9
+
+## 3.0.0
+
+### Major Changes
+
+- 9e8ca31: **Breaking, and one value changes meaning rather than merely appearing.**
+
+  **`transactionHash` is now optional**, so an adapter with no honest value omits it. If you read `receipt.transactionHash` or `signed.transactionHash`, you must handle `undefined`.
+
+  **On Loop, `receipt.updateId` has changed meaning.** It previously held `submission_id ?? command_id` — a submission id identifies the request, not the committed update. It now holds the Loop SDK's real `update_id`, and is **omitted when that is absent**. So a consumer reading `receipt.updateId` on Loop who previously always got a string may now get `undefined`, and the string they got before did not mean what its name said. This is a value quietly changing meaning, not a field appearing, so it will not show up as a type error at the point that matters.
+
+  **Grep your own code for `String(receipt.transactionHash)`.** Now that the field is optional, that renders the literal text `"undefined"` — it compiles, it is not a type error, and it reaches your UI looking like ordinary output. Template interpolation (`` `${receipt.transactionHash}` ``) and string concatenation do the same. Three such sites existed inside this repository and are fixed here; yours are yours to find.
+
+  ## Why this is breaking, by the rules
+
+  `docs/releasing.md` lists "Changing method signatures (parameters, return types)" as a breaking change. `TxReceipt.transactionHash` and `SignedTransaction.transactionHash` go from `TransactionHash` to `TransactionHash | undefined`, so every consumer reading them must now handle absence. It is a breaking change and is described as one here.
+
+  `@partylayer/react` (2 → 3) and `@partylayer/vue` (1 → 2) take major bumps for it. `@partylayer/core`, `@partylayer/sdk` and `@partylayer/provider` are pre-1.0 and take minor bumps: a jump to 1.0.0 would announce a stability commitment this change does not warrant, and 0.x already sets the expectation that a minor can break. Read the change, not the number.
+
+  Also optional, for the same reason and from the same source: `TxStatusUpdate.txId` (core) and `TxStatusEvent.txId` (sdk).
+
+  ## Who is affected
+
+  The compiler enumerated this, not a grep. Every site that had to change:
+
+  - `@partylayer/sdk` — the three `tx:status` emissions in `client.ts` (sign, submit, transfer)
+  - `@partylayer/provider` — `BridgeableClient`'s structural type, and the `signed` / `executed` CIP-0103 payloads
+  - `@partylayer/react` and `@partylayer/vue` — the `TransactionToast` detail line
+
+  If you read `receipt.transactionHash`, you now need to handle `undefined`. If you want a ledger identifier, prefer `receipt.updateId`: it is the ledger's own id for the committed update, and several wallets report a real one while having no hash at all.
+
+  **Watch for `String(receipt.transactionHash)`.** That pattern compiles fine and renders the literal text `"undefined"` — a new placeholder created by the very change that removed the old ones. Three such sites existed inside this repository and are fixed here; check yours.
+
+  ## The finding this comes from
+
+  **A required field with no honest value is a defect factory.**
+
+  Nine sites across five adapters manufactured a transaction hash: `tx_<now>_<random>`, `tx_<now>`, `'pending'` (three times), `''`, a command id, a signature. Not one of them was a fallback anybody designed. Every one existed because the type demanded a value the code path could not produce, and the adapter had nowhere to put nothing.
+
+  Two of the nine were found only while making this change — in our Bron adapter, which an earlier survey of this exact problem had missed because they were ternaries rather than `??` chains. That is the argument in miniature: fixing the sites one at a time finds the ones you already know how to look for, and leaving the field required guarantees the next adapter writes a tenth.
+
+  ## Also fixed here
+
+  - **`BronAdapter`** omits `transactionHash` instead of reporting the word `'pending'` as one (two sites).
+  - **`LoopAdapter`** omits it instead of reporting the command id under it. The command id is still reported as `commandId`, which is true of it. A real value under a wrong name is the same error as a fabricated one for anyone reading the field by its name.
+
+### Patch Changes
+
+- Updated dependencies [9e8ca31]
+- Updated dependencies [18e7e42]
+- Updated dependencies [2eee6b1]
+- Updated dependencies [fbda51f]
+  - @partylayer/core@0.14.0
+  - @partylayer/sdk@0.19.0
+  - @partylayer/registry-client@0.6.4
+  - @partylayer/session@1.1.8
+
+## 2.4.0
+
+### Minor Changes
+
+- 4309023: Add the attachDisclosedContracts helper to the query surface for merging disclosed contracts onto a command payload.
+
+### Patch Changes
+
+- 13aa1dc: TransactionToast now uses distinct semantic backgrounds (red for error, green for success, neutral for pending) and sets role alert on errors so failures are announced, completing the semantic feedback treatment.
+- Updated dependencies [d25d850]
+- Updated dependencies [4309023]
+  - @partylayer/sdk@0.18.2
+  - @partylayer/core@0.13.0
+  - @partylayer/registry-client@0.6.3
+  - @partylayer/session@1.1.7
+
 ## 2.3.3
 
 ### Patch Changes
@@ -103,6 +397,7 @@
   QueryClient, mirroring the wagmi model.
 
   Breaking changes:
+
   - TanStack Query v5 is now a peer dependency and the data hooks are query/mutation
     hooks. Adding QueryClientProvider is a required setup change.
   - useSession's return type changed: it is now the reactive session hook. The previous
@@ -113,6 +408,7 @@
   one minor cycle; the canonical names are PartyLayerProvider and usePartyLayer.
 
   What v2 adds:
+
   - A /query entrypoint (@partylayer/react/query) for the TanStack query and mutation
     hooks and the useSuspenseQuery variants (useSuspenseWallets,
     useSuspenseTransactionCostEstimate, useSuspensePaidTrafficCost).
@@ -168,6 +464,7 @@
 - 4f6fa01: Reactive wallet list: late-announcing wallets now appear LIVE in the picker (no manual refresh), completing the UX of the announce race fix.
 
   Previously the persistent accumulator CAPTURED a late `canton:announceProvider` (data layer), but `listWallets()` returned a stale one-shot snapshot and the React picker only loaded once on mount, so a wallet injecting after the modal opened never surfaced.
+
   - **@partylayer/sdk** (minor, additive): new `wallets:changed` event (signal-only `{ type: 'wallets:changed'; reason: 'announced' }`). When the announce accumulator gains a wallet, the client now invalidates the one-shot announce cache (the same invalidation as `refreshDiscovery`) and emits a **debounced** (~50ms, coalesces a burst into one) `wallets:changed`. The authoritative read stays `listWallets()` (which does registry-merge + gating + filtering), mirroring EIP-6963/mipd. `warmPlans` (popup gesture-sync) is a disjoint cache and is untouched; `listWallets()`/`refreshDiscovery()` signatures are unchanged; zero announces → no emit (byte-identical idle); the debounce timer + listener are torn down in `destroy()`.
   - **@partylayer/react** (patch): `PartyLayerProvider` subscribes to `wallets:changed` and re-lists → `useWallets()` re-renders with the new wallet automatically. `useWallets()`'s signature is unchanged (still a pure context read); the one-shot mount load is preserved; SSR-safe (subscription inside the browser-only effect).
 
@@ -220,6 +517,7 @@
 ### Minor Changes
 
 - 88006e3: Reactive session hooks + demo wiring.
+
   - NEW `useSession()`: reactive `SessionState` + bound actions
     (`connect`/`disconnect`/`restore`) + the narrowed `on(event, handler)` for
     resilience/sync events. Backed by `@partylayer/session` via context. SSR-safe.
@@ -299,6 +597,7 @@
 ### Minor Changes
 
 - c18a275: Add framework-agnostic session React hooks (Step 6b), additively.
+
   - **@partylayer/react**: new `useAccount()` and `useAccountEffect()` hooks
     (wagmi parity) backed by the `@partylayer/session` core via
     `useSyncExternalStore` (SSR-safe). `PartyLayerProvider` now creates and
@@ -450,6 +749,7 @@ string) => void`). A connect modal shouldn't require a connect callback. It
   CantonConnect provides a WalletConnect-like experience for Canton Network dApps, enabling seamless integration with multiple Canton wallets through a unified API.
 
   Features:
+
   - Support for Console Wallet, 5N Loop, Cantor8, and Bron wallets
   - React hooks and components for easy integration
   - TypeScript support with full type definitions

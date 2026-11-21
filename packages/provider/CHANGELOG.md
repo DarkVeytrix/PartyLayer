@@ -1,5 +1,99 @@
 # @partylayer/provider
 
+## 0.6.2
+
+### Patch Changes
+
+- Reject malformed provider request envelopes and parameter shapes with numeric
+  CIP-0103 errors before calling a wallet or opening an extension channel. Apply
+  the same validation to the native provider and the client compatibility bridge.
+
+- Updated dependencies [6163ee3]
+  - @partylayer/core@0.16.0
+
+## 0.6.1
+
+- Forward same-window, same-origin, target-scoped wallet notifications through
+  extension channels. Attach listeners lazily, release idle listeners, pool SDK
+  channels per target and support explicit teardown of pending RPCs.
+
+### Patch Changes
+
+- Route combined-only transaction wallets directly to submission. Keep separate
+  signing for wallets that advertise it, bind submission to the same session and
+  reject duplicate pending command ids. Emit signed/executed events only from
+  actual signature metadata and ledger update/offset evidence. Lost submit
+  responses remain unknown; never retry or manufacture failed/completed events.
+  A disconnected bridge no longer invents an active Devnet network.
+
+- Updated dependencies [817d357]
+- Updated dependencies [2e07185]
+- Updated dependencies [882752f]
+- Updated dependencies [0ebd598]
+- Updated dependencies [8cb0f09]
+- Updated dependencies [8e08da9]
+  - @partylayer/core@0.15.0
+
+## 0.6.0
+
+### Minor Changes
+
+- 9e8ca31: **Breaking, and one value changes meaning rather than merely appearing.**
+
+  **`transactionHash` is now optional**, so an adapter with no honest value omits it. If you read `receipt.transactionHash` or `signed.transactionHash`, you must handle `undefined`.
+
+  **On Loop, `receipt.updateId` has changed meaning.** It previously held `submission_id ?? command_id` — a submission id identifies the request, not the committed update. It now holds the Loop SDK's real `update_id`, and is **omitted when that is absent**. So a consumer reading `receipt.updateId` on Loop who previously always got a string may now get `undefined`, and the string they got before did not mean what its name said. This is a value quietly changing meaning, not a field appearing, so it will not show up as a type error at the point that matters.
+
+  **Grep your own code for `String(receipt.transactionHash)`.** Now that the field is optional, that renders the literal text `"undefined"` — it compiles, it is not a type error, and it reaches your UI looking like ordinary output. Template interpolation (`` `${receipt.transactionHash}` ``) and string concatenation do the same. Three such sites existed inside this repository and are fixed here; yours are yours to find.
+
+  ## Why this is breaking, by the rules
+
+  `docs/releasing.md` lists "Changing method signatures (parameters, return types)" as a breaking change. `TxReceipt.transactionHash` and `SignedTransaction.transactionHash` go from `TransactionHash` to `TransactionHash | undefined`, so every consumer reading them must now handle absence. It is a breaking change and is described as one here.
+
+  `@partylayer/react` (2 → 3) and `@partylayer/vue` (1 → 2) take major bumps for it. `@partylayer/core`, `@partylayer/sdk` and `@partylayer/provider` are pre-1.0 and take minor bumps: a jump to 1.0.0 would announce a stability commitment this change does not warrant, and 0.x already sets the expectation that a minor can break. Read the change, not the number.
+
+  Also optional, for the same reason and from the same source: `TxStatusUpdate.txId` (core) and `TxStatusEvent.txId` (sdk).
+
+  ## Who is affected
+
+  The compiler enumerated this, not a grep. Every site that had to change:
+
+  - `@partylayer/sdk` — the three `tx:status` emissions in `client.ts` (sign, submit, transfer)
+  - `@partylayer/provider` — `BridgeableClient`'s structural type, and the `signed` / `executed` CIP-0103 payloads
+  - `@partylayer/react` and `@partylayer/vue` — the `TransactionToast` detail line
+
+  If you read `receipt.transactionHash`, you now need to handle `undefined`. If you want a ledger identifier, prefer `receipt.updateId`: it is the ledger's own id for the committed update, and several wallets report a real one while having no hash at all.
+
+  **Watch for `String(receipt.transactionHash)`.** That pattern compiles fine and renders the literal text `"undefined"` — a new placeholder created by the very change that removed the old ones. Three such sites existed inside this repository and are fixed here; check yours.
+
+  ## The finding this comes from
+
+  **A required field with no honest value is a defect factory.**
+
+  Nine sites across five adapters manufactured a transaction hash: `tx_<now>_<random>`, `tx_<now>`, `'pending'` (three times), `''`, a command id, a signature. Not one of them was a fallback anybody designed. Every one existed because the type demanded a value the code path could not produce, and the adapter had nowhere to put nothing.
+
+  Two of the nine were found only while making this change — in our Bron adapter, which an earlier survey of this exact problem had missed because they were ternaries rather than `??` chains. That is the argument in miniature: fixing the sites one at a time finds the ones you already know how to look for, and leaving the field required guarantees the next adapter writes a tenth.
+
+  ## Also fixed here
+
+  - **`BronAdapter`** omits `transactionHash` instead of reporting the word `'pending'` as one (two sites).
+  - **`LoopAdapter`** omits it instead of reporting the command id under it. The command id is still reported as `commandId`, which is true of it. A real value under a wrong name is the same error as a fabricated one for anyone reading the field by its name.
+
+### Patch Changes
+
+- Updated dependencies [9e8ca31]
+- Updated dependencies [fbda51f]
+  - @partylayer/core@0.14.0
+
+## 0.5.2
+
+### Patch Changes
+
+- f7ee857: Injected discovery accepts an optional list of extra window global paths, so a wallet at its own dedicated global can be found. Announce discovery tolerates alternate id shapes (providerId, id, info.uuid, info.rdns, first non-empty wins) and adds a development-only warning, deduped per event shape, when an announce cannot be consumed. The warning never throws, never blocks discovery, and is silent in production.
+- 4309023: Widen the internal error code map to a Partial record so the new core SYNCHRONIZER_ERROR code compiles and falls through to the INTERNAL_ERROR default; no existing mapping changes.
+- Updated dependencies [4309023]
+  - @partylayer/core@0.13.0
+
 ## 0.5.1
 
 ### Patch Changes
@@ -61,6 +155,7 @@
   boundary (`LedgerApiParams`) accepts a friendly superset, `requestMethod` in
   either case (plus `PATCH`) and `body` as a JSON string **or** a plain object, and
   each adapter normalizes to what its wallet requires:
+
   - **CIP-0103 `window.canton` RPC wallets**, Send, Console, Nightly,
     WalletConnect, and the SDK announce bridge, get a **lower-case** verb + an
     **object** body, per the canonical CIP-0103 OpenRPC `LedgerApiRequest` schema
@@ -89,6 +184,7 @@
 ### Minor Changes
 
 - a3f2ea4: Fix the announce-discovery race: a wallet that announces (`canton:announceProvider`) **after** the one-shot request window, or on inject before any request, was missed, surfacing as `Wallet "…" did not announce`.
+
   - **@partylayer/provider** (additive): new `subscribeAnnouncedProviders(onProvider, opts)`, a PERSISTENT (EIP-6963-style) announce subscription that captures late and inject-time announces until the returned unsubscribe runs, and `waitForAnnouncedProvider(predicate, { timeoutMs })`, which resolves the moment a matching announce arrives (vs a fixed window). The existing one-shot `discoverAnnouncedProviders` / `discoverProviders` are **unchanged**.
   - **@partylayer/sdk** (patch): the client mounts one persistent accumulator at construction (read by `aggregateAnnouncedWallets`, torn down in `destroy()`), so a late/inject-time announce surfaces in `listWallets()`. No public API change.
   - **@partylayer/adapter-send** (minor): `SendProvider` resolves its channel via resolve-on-arrival (`waitForProvider`), so a late Send announce is no longer missed. Detect and connect now use **split bounds** mirroring the EIP-6963 reactive-readiness model: `detectInstalled`/`isInstalled` waits ~1000ms (best-effort readiness, won't stall the UI when Send is absent; the persistent accumulator self-corrects a later announce), while the deliberate connect/request path waits 3000ms. New `SendProviderOptions.detectTimeoutMs` (default 1000) alongside `announceTimeoutMs` (default 3000). The legacy `SendProviderOptions.discover` hook is **kept (deprecated)**, wrapped for backward compatibility.
@@ -138,6 +234,7 @@
   wallet's own extension channel. Never a shared/undefined slot.
 - 76972de: A2.1: `discoverProviders` now resolves injected (`window.canton` scan) entries to
   their REAL identity and tags `identityResolved` (additive):
+
   - when a sync `provider.id` or a `status().provider.id` probe yields a real id,
     the entry's `id` IS that id (not the `'canton'` scan path id) and
     `identityResolved: true`, so the SDK identity-bridge matches the right wallet
@@ -177,6 +274,7 @@
   of who owns `window.canton`.
 
   New additive exports on `@partylayer/provider`:
+
   - `discoverAnnouncedProviders(options?)`: dispatches `canton:requestProvider`
     and resolves each `canton:announceProvider` reply to a working CIP-0103
     provider.
@@ -210,6 +308,7 @@
   any other adapter.
 
 - c18a275: Add framework-agnostic session React hooks (Step 6b), additively.
+
   - **@partylayer/react**: new `useAccount()` and `useAccountEffect()` hooks
     (wagmi parity) backed by the `@partylayer/session` core via
     `useSyncExternalStore` (SSR-safe). `PartyLayerProvider` now creates and

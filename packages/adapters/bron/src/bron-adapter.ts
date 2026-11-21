@@ -30,6 +30,7 @@ import {
 } from '@partylayer/core';
 import { BronAuthClient, type BronAuthConfig } from './auth';
 import { BronApiClient } from './api';
+import { authorizeBronPopup } from './authorization';
 
 // Re-export types for convenience
 export type { BronAuthConfig } from './auth';
@@ -65,12 +66,15 @@ export class BronAdapter implements WalletAdapter {
 
   private authClient: BronAuthClient;
   private apiClient: BronApiClient;
+  private redirectUri: string;
+  private connecting = false;
 
   constructor(config: BronAdapterConfig) {
     // Initialize auth client
     // Tokens stored in memory by default (secure)
     // Can optionally use encrypted storage if provided
     this.authClient = new BronAuthClient(config.auth);
+    this.redirectUri = config.auth.redirectUri;
 
     // Initialize the real API client. There is no URL- or environment-inferred
     // mock: a mock, if wanted for a test, must be constructed explicitly by the
@@ -98,46 +102,37 @@ export class BronAdapter implements WalletAdapter {
   detectInstalled(): Promise<AdapterDetectResult> {
     // Bron is an enterprise remote signer - no "installation" required
     // Availability depends on OAuth2 configuration
+    // Bron is an enterprise remote signer: no local install, and unusable
+    // without OAuth credentials the app supplies. `needs-config` lets the picker
+    // hide it rather than show a tile whose click dead-ends at an OAuth error —
+    // which is the behaviour the SDK already had, now stated in the data.
     return Promise.resolve({
-      installed: true,
+      installed: false,
+      // BronAdapterConfig requires `auth`, so an instance cannot exist without
+      // credentials; the unconfigured case is handled a level up by not
+      // registering the adapter, which is why Bron is absent from the picker
+      // rather than present and broken.
+      availability: { kind: 'no-local-install' },
       reason: 'Bron is a remote signer service',
     });
   }
 
   async connect(
     ctx: AdapterContext,
-    _opts?: {
+    opts?: {
       timeoutMs?: number;
       requiredCapabilities?: CapabilityKey[];
     }
   ): Promise<AdapterConnectResult> {
+    if (this.connecting) throw new Error('A Bron connection is already pending');
+    this.connecting = true;
     try {
       // Check if we have an access token
       const accessToken = await this.authClient.getAccessToken();
 
       // If no token, start OAuth flow
       if (!accessToken) {
-        if (typeof window === 'undefined') {
-          throw new Error('OAuth flow requires browser environment');
-        }
-
-        const authUrl = await this.authClient.startAuth();
-        
-        // Open auth URL (popup or redirect)
-        const popup = window.open(
-          authUrl,
-          'Bron Auth',
-          'width=500,height=600'
-        );
-
-        if (!popup) {
-          throw new Error('Failed to open auth popup');
-        }
-
-        // The OAuth callback (finishAuth with the returned code) must be handled
-        // by the app; the adapter has no redirect handler of its own. Fail loudly
-        // rather than fabricating a token — there is no dev/mock shortcut.
-        throw new Error('OAuth callback not implemented in adapter - handle in app');
+        await authorizeBronPopup(this.authClient, this.redirectUri, opts?.timeoutMs ?? 120_000);
       }
 
       // Create session with Bron API
@@ -166,6 +161,8 @@ export class BronAdapter implements WalletAdapter {
         phase: 'connect',
         transport: 'remote',
       });
+    } finally {
+      this.connecting = false;
     }
   }
 
@@ -292,9 +289,11 @@ export class BronAdapter implements WalletAdapter {
             : { tx: params.tx, signature: status.signature };
           return {
             signedTx,
-            transactionHash: status.transactionHash
-              ? toTransactionHash(status.transactionHash)
-              : toTransactionHash('pending'),
+            // Was `toTransactionHash('pending')` when Bron reported no hash.
+            // The field is optional now, so nothing is what gets reported.
+            ...(status.transactionHash
+              ? { transactionHash: toTransactionHash(status.transactionHash) }
+              : {}),
             partyId: session.partyId,
           };
         }
@@ -315,9 +314,9 @@ export class BronAdapter implements WalletAdapter {
         : { tx: params.tx, signature: signResponse.signature };
       return {
         signedTx,
-        transactionHash: signResponse.transactionHash
-          ? toTransactionHash(signResponse.transactionHash)
-          : toTransactionHash('pending'),
+        ...(signResponse.transactionHash
+          ? { transactionHash: toTransactionHash(signResponse.transactionHash) }
+          : {}),
         partyId: session.partyId,
       };
     } catch (err) {

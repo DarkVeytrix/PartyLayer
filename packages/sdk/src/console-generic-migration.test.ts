@@ -58,7 +58,12 @@ function consoleRecorder(): Rec {
       if (method === 'getPrimaryAccount')
         return { partyId: 'party::console', publicKey: 'pk', networkId: 'CANTON_NETWORK' };
       if (method === 'connect') return { isConnected: true };
-      if (method === 'prepareExecute') return { transactionHash: '0xupdate', submittedAt: 1 };
+      // Was: `if (method === 'prepareExecute') return { transactionHash: '0xupdate', submittedAt: 1 }`
+      // — the fire-and-forget verb pretending to return a receipt. Console
+      // implements the awaited verb, so the fixture answers that one with what
+      // the standard says it returns.
+      if (method === 'prepareExecuteAndWait')
+        return { tx: { commandId: 'cmd-console', payload: { updateId: '0xupdate', completionOffset: 1 } } };
       return {};
     },
     on() {
@@ -176,7 +181,7 @@ describe('Console generic submit: submitTransaction -> prepareExecute', () => {
     const methods = provider.calls.map((c) => c.method);
     expect(methods).toContain('connect');
     expect(methods).toContain('getPrimaryAccount');
-    expect(methods).toContain('prepareExecute'); // generic submit maps here
+    expect(methods).toContain('prepareExecuteAndWait'); // generic submit maps here
     expect(adapter.getCapabilities()).toEqual(
       expect.arrayContaining(['connect', 'signMessage', 'submitTransaction']),
     );
@@ -199,7 +204,7 @@ describe('Console served by the generic announce bridge (no ConsoleAdapter)', ()
       capabilities: ['connect', 'signMessage', 'submitTransaction'],
       adapter: { packageName: '@partylayer/adapter-console', versionRange: '*' },
       docs: [],
-      networks: ['devnet'],
+      networks: ['devnet', 'mainnet'],
       channel: 'stable',
       providerDetection: {
         transport: 'window.canton',
@@ -266,7 +271,7 @@ describe('Console served by the generic announce bridge (no ConsoleAdapter)', ()
     };
 
     const client = createPartyLayer({
-      network: 'devnet',
+      network: 'mainnet',
       app: { name: 'faz2-both', origin: 'https://test.example.com' },
       discovery: { announceTimeoutMs: 0 },
       adapters: [], // NEITHER bespoke adapter — both via the generic path

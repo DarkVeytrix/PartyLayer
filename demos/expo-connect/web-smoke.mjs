@@ -14,7 +14,7 @@
 import { execSync } from 'node:child_process';
 import { createServer } from 'node:http';
 import { readFileSync, existsSync } from 'node:fs';
-import { join, dirname, resolve, extname } from 'node:path';
+import { join, dirname, resolve, extname, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
 
@@ -42,8 +42,11 @@ if (!existsSync(join(dist, 'index.html'))) {
 }
 
 const server = createServer((req, res) => {
-  const url = (req.url || '/').split('?')[0];
-  let file = join(dist, url === '/' ? 'index.html' : url);
+  let pathname;
+  try { pathname = decodeURIComponent(new URL(req.url || '/', 'http://localhost').pathname); }
+  catch { res.writeHead(400).end(); return; }
+  let file = resolve(dist, '.' + (pathname === '/' ? '/index.html' : pathname));
+  if (!file.startsWith(dist + sep)) { res.writeHead(403).end(); return; }
   if (!existsSync(file)) file = join(dist, 'index.html'); // SPA fallback
   try {
     res.writeHead(200, { 'content-type': MIME[extname(file)] || 'application/octet-stream' });
@@ -64,7 +67,7 @@ const fail = (msg) => {
 // a module-loading regression, so it is tolerated (logged, not failed).
 const isBrokenIconNoise = (text) => /valid SVG|closing tag|match opening tag/i.test(text);
 
-server.listen(PORT, async () => {
+server.listen(PORT, '127.0.0.1', async () => {
   const pageErrors = []; // uncaught exceptions: a module-loading regression crashes here
   const otherConsole = []; // console.errors that are not broken-icon noise
   const iconNoise = [];
@@ -113,17 +116,17 @@ server.listen(PORT, async () => {
     if (!renderers.includes('img')) fail('no wallet rendered an Image logo');
 
     // WalletIcon now validates that a fetched svg url is really SVG before rendering, so a
-    // wallet whose CDN icon returns HTML (walletconnect today) falls back to the neutral
+    // wallet whose CDN icon is missing or is not really an image falls back to the neutral
     // glyph instead of rendering nothing. Every wallet must render something.
     const none = Object.entries(perWallet).filter(([, r]) => r === 'none').map(([id]) => id);
     if (none.length) fail('wallet(s) rendered no logo, the neutral fallback should have triggered: ' + none.join(', '));
 
-    // Specifically confirm the fixed case: if walletconnect is in the list, it shows the
-    // neutral fallback (its CDN icon is a missing HTML page), never nothing and never a letter.
+    // walletconnect is the row that exercised the validation path, so keep it named: it
+    // must render its real logo or the neutral glyph, never nothing and never a letter.
     if (perWallet.walletconnect && perWallet.walletconnect !== 'fallback' && perWallet.walletconnect !== 'img' && perWallet.walletconnect !== 'svg') {
-      fail(`walletconnect rendered "${perWallet.walletconnect}", expected the neutral fallback`);
+      fail(`walletconnect rendered "${perWallet.walletconnect}", expected its real logo or the neutral glyph`);
     }
-    if (perWallet.walletconnect === 'fallback') console.log('walletconnect: neutral fallback rendered (the fixed case).');
+    if (perWallet.walletconnect) console.log(`walletconnect: rendered "${perWallet.walletconnect}".`);
 
     console.log('SMOKE OK: wallet list opened, every wallet rendered a logo or the neutral fallback, no uncaught page errors.');
     await browser.close();
@@ -131,7 +134,7 @@ server.listen(PORT, async () => {
     process.exit(0);
   } catch (e) {
     console.error(e instanceof Error ? e.message : String(e));
-    if (errors.length) console.error('page errors:\n' + errors.join('\n'));
+    if (pageErrors.length) console.error('page errors:\n' + pageErrors.join('\n'));
     await browser.close();
     fail('exception during smoke');
   }

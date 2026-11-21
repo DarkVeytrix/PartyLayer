@@ -37,8 +37,14 @@ function makeOfficial(
     getPrimaryAccount: { partyId: 'party::demo-1', networkId: 'canton:da-devnet' },
     status: { connection: { isConnected: true }, network: { networkId: 'canton:da-devnet' } },
     disconnect: null,
-    signMessage: { signature: 'sig', message: 'm' },
-    prepareExecute: { transactionHash: '0xabc' },
+    signMessage: { signature: 'sig' },
+    // Was: `prepareExecute: { transactionHash: '0xabc' }` — a mock more generous
+    // than the standard, which types prepareExecute as returning Null. The
+    // adapter now prefers the awaited verb, so the fixture models what a real
+    // wallet returns from it: the executed txChanged event.
+    prepareExecuteAndWait: {
+      tx: { commandId: 'cmd-1', payload: { updateId: 'update-1', completionOffset: 7 } },
+    },
     ...providerHandlers,
   });
   const providerFactory = vi.fn(() => provider);
@@ -57,6 +63,17 @@ const ctx = { network: 'canton:da-devnet' } as unknown as AdapterContext;
 const session = {} as Session;
 
 describe('GenericDiscoveryAdapter', () => {
+  it.each([false, { isConnected: false }])('rejects an explicit failed handshake even when a cached account exists: %j', async result => {
+    const { official, providerFactory } = makeOfficial({}, { connect: result });
+    const adapter = new GenericDiscoveryAdapter({ official });
+    await expect(adapter.connect(ctx)).rejects.toThrow(/did not establish a connection/);
+    const provider = providerFactory.mock.results[0].value;
+    expect(vi.mocked(provider.request).mock.calls.map(call => call[0].method)).toEqual(['connect']);
+  });
+  it.each([undefined, { partyId: '' }, { partyId: ' ' }])('does not publish a missing/empty primary party: %j', async account => {
+    const { official } = makeOfficial({}, { getPrimaryAccount: account });
+    await expect(new GenericDiscoveryAdapter({ official }).connect(ctx)).rejects.toThrow(/primary party/);
+  });
   it('derives walletId from the provider id by default', () => {
     const { official } = makeOfficial();
     const a = new GenericDiscoveryAdapter({ official });
@@ -84,29 +101,55 @@ describe('GenericDiscoveryAdapter', () => {
     expect(caps).toEqual(['connect', 'disconnect', 'signMessage', 'submitTransaction']);
   });
 
+  it('reports only implemented declared capabilities and normalizes ledgerApi requests', async () => {
+    const { official, providerFactory } = makeOfficial({}, { ledgerApi: { response: '{"ok":true}' } });
+    const adapter = new GenericDiscoveryAdapter({ official, capabilities: {
+      signMessage: false, submitTransaction: false, ledgerApi: true, events: true,
+    } });
+    expect(adapter.getCapabilities()).toEqual(['connect', 'disconnect', 'ledgerApi']);
+    expect(await adapter.ledgerApi!(ctx, session, {
+      requestMethod: 'GET', resource: '/v2/version', body: '{"test":1}',
+    })).toEqual({ response: '{"ok":true}' });
+    expect(providerFactory.mock.results[0].value.request).toHaveBeenCalledWith({
+      method: 'ledgerApi', params: { requestMethod: 'get', resource: '/v2/version', body: { test: 1 } },
+    });
+  });
+
   it('does NOT call official.provider() at construction (SSR-safe / lazy)', () => {
     const { official, providerFactory } = makeOfficial();
     new GenericDiscoveryAdapter({ official });
     expect(providerFactory).not.toHaveBeenCalled();
   });
 
-  it('detectInstalled delegates to official.detect()', async () => {
-    const { official } = makeOfficial({ detect: vi.fn(async () => false) });
+  // REPLACED. These two asserted that detectInstalled delegates to
+  // `official.detect()` — and that delegation is now deliberately gone. All
+  // three vendor implementations are constants (walley: window.open exists;
+  // cauri: Promise.resolve(true); oneswap: typeof window !== 'undefined'), so
+  // awaiting them bought no information while adding an async hop to the
+  // picker's render path. A `discovery-adapter` transport IS the answer: there
+  // is no local install. See GenericDiscoveryAdapter.detectInstalled.
+  it('detectInstalled reports no-local-install without consulting the vendor', async () => {
+    const detect = vi.fn(async () => true);
+    const { official } = makeOfficial({ detect });
     const a = new GenericDiscoveryAdapter({ official });
-    expect(await a.detectInstalled()).toEqual({
-      installed: false,
-      reason: 'Wallet reported not available',
-    });
+
+    const result = await a.detectInstalled();
+    expect(result.availability).toEqual({ kind: 'no-local-install' });
+    expect(result.installed).toBe(false);
+    // The point of the change: the vendor is never asked.
+    expect(detect).not.toHaveBeenCalled();
   });
 
-  it('detectInstalled treats a throwing detect() as not-installed (no crash)', async () => {
-    const { official } = makeOfficial({
-      detect: vi.fn(async () => {
-        throw new Error('boom');
-      }),
+  it('a vendor detect() that throws cannot affect detection, because it is not called', async () => {
+    const detect = vi.fn(async () => {
+      throw new Error('boom');
     });
+    const { official } = makeOfficial({ detect });
     const a = new GenericDiscoveryAdapter({ official });
-    expect(await a.detectInstalled()).toEqual({ installed: false, reason: 'Detection failed' });
+
+    const result = await a.detectInstalled();
+    expect(result.availability).toEqual({ kind: 'no-local-install' });
+    expect(detect).not.toHaveBeenCalled();
   });
 
   it('connect delegates connect → getPrimaryAccount → status and builds the session', async () => {
@@ -160,9 +203,60 @@ describe('GenericDiscoveryAdapter', () => {
     await a.signMessage(ctx, session, { message: 'hello' });
     expect(reqMock).toHaveBeenCalledWith({ method: 'signMessage', params: { message: 'hello' } });
 
-    await a.submitTransaction(ctx, session, { signedTx: { foo: 1 } });
+    // Was: asserted the submit reached the provider as `prepareExecute`. It now
+    // asserts the awaited verb AND that the receipt carries the real update id,
+    // which is the thing the old assertion could not have caught.
+    const receipt = await a.submitTransaction(ctx, session, { signedTx: { foo: 1 } });
     expect(reqMock).toHaveBeenCalledWith(
-      expect.objectContaining({ method: 'prepareExecute' }),
+      expect.objectContaining({ method: 'prepareExecuteAndWait' }),
     );
+    expect(receipt.updateId).toBe('update-1');
+    expect(String(receipt.transactionHash)).toBe('update-1');
+    expect(receipt.commandId).toBe('cmd-1');
+  });
+
+  // The OneSwap case: a wallet that implements prepareExecute and rejects the
+  // awaited verb with 4200. It must keep working exactly as it does today.
+  it('falls back to prepareExecute for a wallet without the awaited verb', async () => {
+    const unsupported = Object.assign(new Error('Unsupported CIP-0103 method'), { code: 4200 });
+    const { official } = makeOfficial();
+    const a = new GenericDiscoveryAdapter({ official });
+    await a.connect(ctx);
+    const req = (official.provider() as CIP0103Provider).request as ReturnType<typeof vi.fn>;
+    req.mockImplementation(async (args: { method: string }) => {
+      if (args.method === 'prepareExecuteAndWait') throw unsupported;
+      if (args.method === 'prepareExecute') {
+        return { transactionHash: '0xabc', updateId: 'oneswap-update' };
+      }
+      return undefined;
+    });
+
+    const receipt = await a.submitTransaction(ctx, session, { signedTx: { foo: 1 } });
+
+    expect(req).toHaveBeenCalledWith(expect.objectContaining({ method: 'prepareExecuteAndWait' }));
+    expect(req).toHaveBeenCalledWith(expect.objectContaining({ method: 'prepareExecute' }));
+    // Preserve identifiers and complete the public receipt contract.
+    expect(receipt).toEqual({ transactionHash: '0xabc', updateId: 'oneswap-update', submittedAt: expect.any(Number) });
+  });
+
+  it('asks the wallet for the awaited verb only once', async () => {
+    const unsupported = Object.assign(new Error('Unsupported CIP-0103 method'), { code: 4200 });
+    const { official } = makeOfficial();
+    const a = new GenericDiscoveryAdapter({ official });
+    await a.connect(ctx);
+    const req = (official.provider() as CIP0103Provider).request as ReturnType<typeof vi.fn>;
+    req.mockImplementation(async (args: { method: string }) => {
+      if (args.method === 'prepareExecuteAndWait') throw unsupported;
+      return { transactionHash: '0xabc' };
+    });
+
+    await a.submitTransaction(ctx, session, { signedTx: { foo: 1 } });
+    await a.submitTransaction(ctx, session, { signedTx: { foo: 2 } });
+    await a.submitTransaction(ctx, session, { signedTx: { foo: 3 } });
+
+    const awaited = req.mock.calls.filter(
+      (c: unknown[]) => (c[0] as { method: string }).method === 'prepareExecuteAndWait',
+    );
+    expect(awaited).toHaveLength(1);
   });
 });

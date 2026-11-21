@@ -1,14 +1,15 @@
 import type { Metadata } from 'next';
 import './globals.css';
+import { WebsiteAnalytics } from './components/WebsiteAnalytics';
 
 export const metadata: Metadata = {
   metadataBase: new URL('https://partylayer.xyz'),
   title: {
-    default: 'PartyLayer — One SDK for Every Canton Wallet',
+    default: 'PartyLayer — Canton Wallet SDK & React Connect Kit',
     template: '%s | PartyLayer',
   },
   description:
-    'Open-source wallet integration SDK for Canton Network. Connect Console Wallet, 5N Loop, Cantor8, Nightly, and Bron with a single unified API. React hooks, Vanilla JS, CIP-0103 support, and registry-backed wallet verification.',
+    'CIP-0103 compliant Canton wallet integration. Install the React kit once for supported wallet runtimes, a branded Connect Wallet button, themes and typed APIs.',
   keywords: [
     'Canton wallet',
     'Canton Network',
@@ -32,36 +33,43 @@ export const metadata: Metadata = {
     'wallet registry',
   ],
   icons: {
-    icon: '/favicon-new.svg',
+    icon: [
+      { url: '/favicon-new.svg', type: 'image/svg+xml' },
+      { url: '/favicon.ico', type: 'image/x-icon' },
+    ],
   },
   openGraph: {
     type: 'website',
     siteName: 'PartyLayer',
     locale: 'en_US',
-    url: 'https://partylayer.xyz',
-    title: 'PartyLayer — One SDK for Every Canton Wallet',
+    // No `url` here on purpose. openGraph.url is inherited by every descendant
+    // route, so a value set at the root makes each page announce the homepage's
+    // identity. Each route sets its own alongside its canonical.
+    title: 'PartyLayer — Canton Wallet SDK & React Connect Kit',
     description:
-      'Open-source wallet integration SDK for Canton Network. Connect any Canton wallet with a single unified API.',
+      'CIP-0103 compliant Canton wallet integration with included supported wallet runtimes and a branded React connection UI.',
     images: [
       {
         url: '/opengraph-image',
         width: 1200,
         height: 630,
-        alt: 'PartyLayer — One SDK for Every Canton Wallet',
+        alt: 'PartyLayer — Canton Wallet SDK & React Connect Kit',
       },
     ],
   },
   twitter: {
     card: 'summary_large_image',
     site: '@partylayerkit',
-    title: 'PartyLayer — One SDK for Every Canton Wallet',
+    title: 'PartyLayer — Canton Wallet SDK & React Connect Kit',
     description:
-      'Open-source wallet integration SDK for Canton Network. Connect any Canton wallet with a single unified API.',
+      'CIP-0103 compliant Canton wallet integration with included supported wallet runtimes and a branded React connection UI.',
     images: ['/opengraph-image'],
   },
-  alternates: {
-    canonical: 'https://partylayer.xyz',
-  },
+  // No `alternates.canonical` here on purpose. Next.js inherits root metadata
+  // into every route that does not override it, so a canonical set here made
+  // /kit-demo, /cost-demo, /debug and /docs all declare themselves the homepage
+  // (Search Console: "duplicate without user-selected canonical"). Every route
+  // now derives its own from its own path.
 };
 
 // Minimal WebSite identity block (no SearchAction: the site has no query
@@ -96,7 +104,7 @@ const softwareJsonLd = {
   applicationCategory: 'DeveloperApplication',
   operatingSystem: 'Web',
   description:
-    'CIP-0103 compliant wallet integration SDK for the Canton Network — registry-backed, verified wallets, and a clean developer experience.',
+    'CIP-0103 wallet integration SDK for the Canton Network, with a wallet catalog, React connection UI and TypeScript APIs.',
 };
 
 export default function RootLayout({
@@ -127,11 +135,27 @@ export default function RootLayout({
             • Local dev visitors who don't have a real Canton extension
               installed and want to exercise the connect flow
 
-          DEV-ONLY: the script is omitted from production builds so we
-          never inject a synthetic wallet into real users' window.canton
-          namespace. Production visitors see ONLY their installed
-          extensions (or none, with proper Install CTAs). Verified in
-          packages/react/src/native-readiness.test.ts (scenario K).
+          DEV-ONLY: the `process.env.NODE_ENV !== 'production'` guard below
+          omits the script from production builds, so we never inject a
+          synthetic wallet into real users' window.canton namespace.
+          Production visitors see ONLY their installed extensions (or none,
+          with proper Install CTAs).
+
+          NOT UNIT-TESTED, deliberately. This block previously claimed the
+          guard was verified by a named scenario in
+          packages/react/src/native-readiness.test.ts. No such scenario exists,
+          and nothing in that file mentions NODE_ENV. A comment citing a test
+          that does not exist is worse than no comment, because it reads as
+          verified.
+
+          A unit test here would assert `process.env.NODE_ENV !== 'production'`,
+          which tests Next's compile-time substitution rather than anything we
+          wrote — the guard is a static constant the bundler eliminates. The
+          only verification worth having is that the PRODUCTION BUNDLE contains
+          no reference to mock-cip0103-wallet.js, which is a build-output
+          assertion, not a unit test, and does not exist today. If that
+          assurance is wanted, it belongs in the gate beside the other
+          package-contents checks.
 
           A PLAIN synchronous script tag on purpose (not next/script
           beforeInteractive): in App Router dev mode, beforeInteractive is
@@ -146,6 +170,7 @@ export default function RootLayout({
           <script src="/mock-cip0103-wallet.js" />
         )}
         {children}
+        <WebsiteAnalytics />
       </body>
     </html>
   );
